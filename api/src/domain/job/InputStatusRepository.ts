@@ -44,3 +44,45 @@ export async function deleteAll(db: D1Database, entities: InputStatus[]): Promis
   if (!ids.length) return;
   await db.batch(chunk(ids).map((part) => stmt(db, `DELETE FROM "${TABLE}" WHERE id IN ${placeholders(part.length)}`, ...part)));
 }
+
+// ---- Added for the job services (not in the Java repository) ----
+
+/** `findAllByUserAndJobStatusId` for many jobs at once (one chunked IN query instead of N). */
+export async function findAllByUserAndJobStatusIdIn(
+  db: D1Database,
+  jobStatusIds: string[],
+  userId: string,
+): Promise<InputStatus[]> {
+  if (!jobStatusIds.length) return [];
+  const out: InputStatus[] = [];
+  for (const part of chunk(jobStatusIds as Param[], 90)) {
+    const rows = await all(
+      db,
+      `SELECT * FROM "${TABLE}" WHERE job_status_id IN ${placeholders(part.length)} AND user_id = ?`,
+      ...part,
+      userId,
+    );
+    out.push(...rows.map(fromRow));
+  }
+  return out;
+}
+
+/** status key -> row count for one job and user (aggregated in SQL; used by the polled endpoint). */
+export async function countByStatusForUserAndJobStatusId(
+  db: D1Database,
+  jobStatusId: string,
+  userId: string,
+): Promise<Map<number, number>> {
+  const rows = await all<{ status: number | null; n: number }>(
+    db,
+    `SELECT status, COUNT(*) AS n FROM "${TABLE}" WHERE job_status_id = ? AND user_id = ? GROUP BY status`,
+    jobStatusId,
+    userId,
+  );
+  return new Map(rows.filter((r) => r.status != null).map((r) => [Number(r.status), Number(r.n)]));
+}
+
+/** Same rows as `deleteAll(findAllByUserAndJobStatusId(jobStatusId, userId))`, as one statement. */
+export function deleteAllByUserAndJobStatusIdStmt(db: D1Database, jobStatusId: string, userId: string): D1PreparedStatement {
+  return stmt(db, `DELETE FROM "${TABLE}" WHERE job_status_id = ? AND user_id = ?`, jobStatusId, userId);
+}

@@ -61,3 +61,10 @@ export async function deleteAll(db: D1Database, entities: BulkUploadJobStatus[])
   if (!ids.length) return;
   await db.batch(chunk(ids).map((part) => stmt(db, `DELETE FROM "${TABLE}" WHERE id IN ${placeholders(part.length)}`, ...part)));
 }
+
+// ---- Added for the job services (not in the Java repository) ----
+
+/** Same rows as `deleteAll(findAllByUserAndJobStatusId(jobStatusId, userId))`, as one statement. */
+export function deleteAllByUserAndJobStatusIdStmt(db: D1Database, jobStatusId: string, userId: string): D1PreparedStatement {
+  return stmt(db, `DELETE FROM "${TABLE}" WHERE job_status_id = ? AND user_id = ?`, jobStatusId, userId);
+}

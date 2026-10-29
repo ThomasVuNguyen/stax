@@ -182,6 +182,8 @@ export class NotBlankException extends RuntimeException {}
 export class KeyInvalidAuthenticationException extends RuntimeException {}
 /** java.lang.UnsupportedOperationException, rendered by the RuntimeException handler. */
 export class UnsupportedOperationException extends RuntimeException {}
+/** java.lang.IllegalStateException, rendered by the RuntimeException handler (500 RUNTIME_ERROR). */
+export class IllegalStateException extends RuntimeException {}
 /** FeatureDisabledException is rendered as 404 PATH_NOT_FOUND "Path not found" whatever its message. */
 export class FeatureDisabledException extends HttpError {
   constructor(public detail = "Feature disabled") {

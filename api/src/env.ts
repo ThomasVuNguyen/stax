@@ -20,6 +20,10 @@ export interface Env {
   AUTH_ALLOWLIST_DOMAINS?: string;
   AUTH_ALLOWLIST_GROUP_IDS?: string;
   TOS_TYPE?: string;
+  /** Service account key JSON (secret) for Cloud Identity group-membership checks (allowlist groups). */
+  GOOGLE_SERVICE_ACCOUNT_JSON?: string;
+  /** Quota project for Cloud Identity calls (spring.cloud.gcp.projectId); defaults to the key's project_id. */
+  GCP_PROJECT_ID?: string;
 }
 
 /** Authority attached to the request, mirroring the Spring Security CustomAuthority values. */

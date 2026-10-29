@@ -8,7 +8,7 @@
  * - job_status has no created_at/updated_at; `startTime` is the @CreationTimestamp.
  * - Inherited methods used by Java: findById, findAllById, save, delete(entity).
  */
-import { type Param, all, allIn, first, now, run, scalar } from "../../lib/db";
+import { type Param, all, allIn, first, now, run, scalar, stmt } from "../../lib/db";
 import { type JobStatusEnum, JobStatusEnumKey } from "../../enums/JobStatusEnum";
 import { upsertStmt } from "../../entities/EntitySupport";
 import { COLUMNS, type JobStatus, TABLE, fromRow, prePersist, toRow } from "../../entities/JobStatus";
@@ -194,3 +194,26 @@ export async function delete_(db: D1Database, e: JobStatus): Promise<void> {
 }
 
 export { delete_ as delete };
+
+// ---- Added for the job services (not in the Java repository) ----
+
+export function deleteByIdStmt(db: D1Database, id: string): D1PreparedStatement {
+  return stmt(db, `DELETE FROM "${TABLE}" WHERE id = ?`, id);
+}
+
+/** `findIdsByUserAndProjectIdAndStatus` for several statuses in one query: rows of (id, status). */
+export async function findIdsAndStatusByUserAndProjectIdAndStatusIn(
+  db: D1Database,
+  userId: string,
+  projectId: string,
+  statuses: number[],
+): Promise<{ id: string; status: number }[]> {
+  if (!statuses.length) return [];
+  return all<{ id: string; status: number }>(
+    db,
+    `SELECT id, status FROM "${TABLE}" WHERE user_id = ? AND project_id = ? AND status IN (${statuses.map(() => "?").join(", ")})`,
+    userId,
+    projectId,
+    ...statuses,
+  );
+}

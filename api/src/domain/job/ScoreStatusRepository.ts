@@ -38,3 +38,10 @@ export async function deleteAll(db: D1Database, entities: ScoreStatus[]): Promis
   if (!ids.length) return;
   await db.batch(chunk(ids).map((part) => stmt(db, `DELETE FROM "${TABLE}" WHERE id IN ${placeholders(part.length)}`, ...part)));
 }
+
+// ---- Added for the job services (not in the Java repository) ----
+
+/** Same rows as `deleteAll(findAllByUserAndJobId(jobId, userId))`, as one statement. */
+export function deleteAllByUserAndJobIdStmt(db: D1Database, jobId: string, userId: string): D1PreparedStatement {
+  return stmt(db, `DELETE FROM "${TABLE}" WHERE job_status_id = ? AND user_id = ?`, jobId, userId);
+}

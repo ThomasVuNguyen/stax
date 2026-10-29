@@ -80,7 +80,8 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     if (header && header.startsWith("Bearer ") && header.length > 7) {
       const token = header.substring(7);
       if (token.startsWith("tos-")) {
-        if (!path.startsWith("/tos/") && path !== "/tos") {
+        // Java only accepted tos- tokens on URIs starting with "/tos/" (not on GET /tos itself).
+        if (!path.startsWith("/tos/")) {
           return c.text("Invalid endpoint for tos- token.", 403);
         }
         const user = await userFromToken(c.env.DB, token.substring(4), c.env.TOS_TOKEN_SIGNING_KEY);
@@ -91,8 +92,8 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
         }
       } else {
         const user = await userFromToken(c.env.DB, token, c.env.TOKEN_SIGNING_KEY);
-        if (user) {
-          checkUserStatus(user);
+        // processJwtToken ran inside try/catch: a pending-deletion user just stays unauthenticated.
+        if (user && user.status !== "PENDING_DELETION") {
           c.set("user", user);
           c.set("authority", "AUTH_JWT");
         }
@@ -118,7 +119,7 @@ async function userFromToken(db: D1Database, token: string, key: string) {
 
 function checkUserStatus(user: AuthUser) {
   if (user.status === "PENDING_DELETION") {
-    throw new UserAccessDeniedException("Account is pending deletion and access is not allowed");
+    throw new UserAccessDeniedException("User access denied: Account is pending deletion and access is not allowed");
   }
 }
 
