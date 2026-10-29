@@ -111,7 +111,14 @@ export async function continueSxsEvaluation(
 
   pair = await handlePairSynchronization(ctx, pair, user, request);
   pair = await ensureSideBIsReady(ctx, pair, user, projectId, request);
-  await runNewInferenceTurns(ctx, pair, user, projectId, request);
+  try {
+    await runNewInferenceTurns(ctx, pair, user, projectId, request);
+  } catch (e) {
+    // No rollback on D1: keep the pair pointing at the latest turns the synchronization created,
+    // otherwise it drops out of the workbook (which only lists pairs on their chats' latest turns).
+    await SxsEvaluationPairRepository.save(ctx.db, pair);
+    throw e;
+  }
 
   return SxsEvaluationPairRepository.save(ctx.db, pair);
 }
@@ -166,31 +173,34 @@ async function runNewInferenceTurns(
 ): Promise<void> {
   const prompts = request.prompts ?? null;
   const turnA = pair.chatTurnAId ? await loadChatTurn(ctx.db, await findTurnOrThrow(ctx, pair.chatTurnAId)) : null;
-  const newFinalTurnADto = await runInferenceForSide(ctx, turnA, user, projectId, prompts, request.model_id_a ?? null);
-  if (newFinalTurnADto == null) {
+  const turnB = pair.chatTurnBId ? await loadChatTurn(ctx.db, await findTurnOrThrow(ctx, pair.chatTurnBId)) : null;
+  // Java ran this in one @Transactional, so a model conflict on side B rolled back side A's new
+  // turn. D1 has no rollback: resolve (and validate) both sides' models before running anything.
+  const modelIdA = resolveModelIdForSide(turnA, request.model_id_a ?? null);
+  if (modelIdA == null) {
     throw new IllegalStateException(
       "Cannot continue conversation: Model is required in the current response or should be provided in the request.",
     );
   }
-  const turnB = pair.chatTurnBId ? await loadChatTurn(ctx.db, await findTurnOrThrow(ctx, pair.chatTurnBId)) : null;
-  const newFinalTurnBDto = await runInferenceForSide(ctx, turnB, user, projectId, prompts, request.model_id_b ?? null);
+  const modelIdB = resolveModelIdForSide(turnB, request.model_id_b ?? null);
+  const newFinalTurnADto = await PlaygroundInferenceService.runInferenceWithConversation(
+    ctx, user, projectId, modelIdA, (turnA as LoadedChatTurn).id, prompts, null,
+  );
+  const newFinalTurnBDto =
+    modelIdB == null
+      ? null
+      : await PlaygroundInferenceService.runInferenceWithConversation(
+          ctx, user, projectId, modelIdB, (turnB as LoadedChatTurn).id, prompts, null,
+        );
 
   // updatePairWithNewTurns
   pair.chatTurnAId = (await findTurnOrThrow(ctx, dtoId(newFinalTurnADto))).id;
   if (newFinalTurnBDto != null) pair.chatTurnBId = (await findTurnOrThrow(ctx, dtoId(newFinalTurnBDto))).id;
 }
 
-async function runInferenceForSide(
-  ctx: Ctx,
-  turn: LoadedChatTurn | null,
-  user: User,
-  projectId: string,
-  prompts: Prompt[] | null,
-  requestModelId: string | null,
-): Promise<ChatTurnDTO | null> {
+/** Model to continue a side with (null: side skipped); runInferenceForSide's checks in Java. */
+function resolveModelIdForSide(turn: LoadedChatTurn | null, requestModelId: string | null): string | null {
   if (turn == null) return null;
-
-  let modelIdToUse: string;
   if (turn.modelResponse != null && turn.modelResponse.model != null) {
     const existingModelId = turn.modelResponse.model.id as string;
     if (requestModelId != null && requestModelId !== existingModelId) {
@@ -198,14 +208,9 @@ async function runInferenceForSide(
         `Model ID conflict. Turn already has model '${existingModelId}', but a different model '${requestModelId}' was requested.`,
       );
     }
-    modelIdToUse = existingModelId;
-  } else if (requestModelId != null) {
-    modelIdToUse = requestModelId;
-  } else {
-    return null;
+    return existingModelId;
   }
-
-  return PlaygroundInferenceService.runInferenceWithConversation(ctx, user, projectId, modelIdToUse, turn.id, prompts, null);
+  return requestModelId;
 }
 
 async function shouldSkipSynchronization(

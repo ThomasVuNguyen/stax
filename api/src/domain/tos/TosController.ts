@@ -19,7 +19,13 @@ app.get("/tos", async (c) => {
 
 app.post("/tos/accept", async (c) => {
   const ctx = ctxFromHono(c);
-  const tosId = c.req.query("tosId");
+  // @RequestParam also binds form fields: the frontend posts `tosId` as x-www-form-urlencoded.
+  let tosId: string | undefined = c.req.query("tosId");
+  const contentType = c.req.header("Content-Type") ?? "";
+  if (tosId === undefined && /application\/x-www-form-urlencoded|multipart\/form-data/i.test(contentType)) {
+    const field = (await c.req.parseBody())["tosId"];
+    if (typeof field === "string") tosId = field;
+  }
   if (tosId === undefined) {
     // MissingServletRequestParameterException falls through to the generic Exception handler.
     return c.json(
