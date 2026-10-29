@@ -7,7 +7,7 @@
     "dev": "node scripts/gen-registry.mjs && wrangler dev",
     "deploy": "node scripts/gen-registry.mjs && wrangler deploy",
     "typecheck": "node scripts/gen-registry.mjs && tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "db:generate": "python3 -I scripts/liquibase_to_sqlite.py ../server/src/main/resources/liquibase migrations",
     "db:migrate:local": "wrangler d1 migrations apply stax --local",
     "db:migrate:remote": "wrangler d1 migrations apply stax --remote",

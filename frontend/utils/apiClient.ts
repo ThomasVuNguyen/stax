@@ -59,7 +59,7 @@ export async function createRequest(
   return await axios
     .request({
       url,
-      baseURL: process.env.NEXT_PUBLIC_APP_BASE_URL + "/api",
+      baseURL: (process.env.NEXT_PUBLIC_APP_BASE_URL ?? "") + "/api",
       timeout: 180000,
       headers,
       data,
@@ -90,7 +90,7 @@ export async function createRequest(
         axios
           .request({
             url: backendEndpoints.AUTH.VALIDATE_TOKEN,
-            baseURL: process.env.NEXT_PUBLIC_APP_BASE_URL + "/api",
+            baseURL: (process.env.NEXT_PUBLIC_APP_BASE_URL ?? "") + "/api",
             timeout: 180000,
             headers,
             data,
