@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stax-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "stax", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "stax-files" }],
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "stax-jobs" }],
+    "consumers": [
+      { "queue": "stax-jobs", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 3, "dead_letter_queue": "stax-jobs-dlq" }
+    ]
+  },
+  "triggers": { "crons": ["0 9,21 * * *"] },
+  "vars": {
+    "AUTH_ENABLED": "false",
+    "SYSTEM_USER_EMAIL": "system@stax.local",
+    "APP_ENV": "prod",
+    "JWT_VALIDITY_SECONDS": "43200",
+    "TOS_VALIDITY_SECONDS": "1800"
+  }
+}
