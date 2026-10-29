@@ -26,3 +26,7 @@ eslint.config.mjs
 public/.DS_Store
 /coverage
 .DS_Store
+# OpenNext / Cloudflare
+.open-next
+.wrangler
+.dev.vars

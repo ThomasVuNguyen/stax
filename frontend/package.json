@@ -14,7 +14,10 @@
     "test:watch": "jest --watch",
     "lint:check": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=0",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "githooks:init": "cp git-hooks/pre-commit ../.git/hooks/pre-commit && chmod +x ../.git/hooks/pre-commit"
+    "githooks:init": "cp git-hooks/pre-commit ../.git/hooks/pre-commit && chmod +x ../.git/hooks/pre-commit",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
@@ -28,6 +31,7 @@
     "@mantine/notifications": "^7.5.2",
     "@mantine/tiptap": "^7.7.1",
     "@observablehq/plot": "^0.6.14",
+    "@opennextjs/cloudflare": "1.15.1",
     "@react-oauth/google": "^0.12.1",
     "@tanstack/query-core": "^5.17.15",
     "@tanstack/react-query": "^5.17.19",
@@ -42,7 +46,7 @@
     "jspdf": "^3.0.3",
     "lodash": "^4.17.21",
     "mantine-react-table": "^2.0.0-beta.0",
-    "next": "^14.2.30",
+    "next": "14.2.35",
     "papaparse": "^5.5.3",
     "postcss-import": "^16.1.1",
     "qs": "^6.14.0",
@@ -87,6 +91,7 @@
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.2"
+    "typescript-eslint": "^8.46.2",
+    "wrangler": "4.150.0"
   }
 }

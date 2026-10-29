@@ -8,36 +8,51 @@
 
 ---
 
-## 🏗️ 1. Infrastructure Setup (Terraform)
+## ☁️ 1. Cloudflare (this fork)
 
-Terraform manages the GCP resources including Cloud Run, Cloud SQL, and Pub/Sub.
+This fork runs entirely on Cloudflare. The Spring Boot server is replaced by a TypeScript Worker in
+`api/` (Hono + D1 + Queues + R2) that serves the same HTTP API, and the Next.js app runs on Workers
+through OpenNext. `server/` is kept only as the reference implementation and as the source of the
+D1 schema (`api/migrations` is generated from its Liquibase changelog).
 
-### Prerequisites
-* **GCP Project:** Create a project and enable billing. Note your `PROJECT_ID`.
-* **Local Tools:** Install [Terraform](https://developer.hashicorp.com/terraform/install) and the [gcloud CLI](https://cloud.google.com/sdk/docs/install).
-* **Docker Images:** Build and push your images to the Artifact Registry:
-    * `us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/stax-ui`
-    * `us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/stax-backend`
+| Spring / GCP | Cloudflare |
+|---|---|
+| Spring Boot on Cloud Run | `stax-api` Worker (`api/`) |
+| MySQL / Cloud SQL + Liquibase | D1 database `stax` (`api/migrations`) |
+| Pub/Sub topics | Queue `stax-jobs` (+ `stax-jobs-dlq`) |
+| Cloud Storage | R2 bucket `stax-files` |
+| `@Scheduled` monitoring | Cron trigger on `stax-api` |
+| Next.js on Cloud Run | `stax-web` Worker (`frontend/`, OpenNext), calls `stax-api` via a service binding |
 
-### Bootstrap Steps
-1.  **Initialize GCloud:**
-    ```bash
-    gcloud init
-    gcloud config set project $PROJECT_ID
-    gcloud auth application-default login
-    ```
-2.  **Deploy Resources:**
-    ```bash
-    cd terraform/quickstart
-    # Update project_id in main.tf
-    terraform init -upgrade
-    terraform plan
-    terraform apply
-    ```
+### Local development
+```bash
+cd api && npm install && cp .dev.vars.example .dev.vars
+npx wrangler d1 migrations apply stax --local
+npm run dev                      # http://localhost:8787
+
+cd ../frontend && npm install
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8787 npm run dev   # http://localhost:3000
+```
+
+### Deploying
+One-time setup: `wrangler d1 create stax` (put the id in `api/wrangler.jsonc`),
+`wrangler r2 bucket create stax-files`, `wrangler queues create stax-jobs` and `stax-jobs-dlq`,
+then set the API secrets with `wrangler secret put` in `api/` (`AES_SECRET_KEY` (32 chars),
+`TOKEN_SIGNING_KEY`, `TOS_TOKEN_SIGNING_KEY` (base64), and for Google sign-in
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, with `AUTH_ENABLED=true`).
+
+```bash
+cd api && npx wrangler d1 migrations apply stax --remote && npm run deploy
+cd ../frontend && npm run deploy
+```
+
+GitHub Actions (`.github/workflows/cloudflare.yml`) type-checks and builds every PR and deploys both
+Workers on pushes to `main`. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID`.
 
 ---
 
-## ⚙️ 2. Backend Server (Spring Boot)
+## ⚙️ 2. Original Backend Server (Spring Boot, reference only)
 
 The backend handles the core evaluation logic and integrates with the GCP Pub/Sub emulator for local development.
 
@@ -97,10 +112,10 @@ A React-based UI built with Mantine and Tailwind CSS for interacting with the St
 ## 📂 Project Structure
 
 ```text
-├── terraform/         # Infrastructure as Code (GCP)
-│   ├── modules/       # Reusable GCP resource definitions
-│   └── quickstart/    # Main deployment entry point
-├── server/            # Spring Boot Java Server
+├── api/               # Cloudflare Worker API (Hono, D1, Queues, R2)
+│   ├── migrations/    # D1 schema + seed data (generated from server/ Liquibase)
+│   └── src/           # Port of the Spring Boot server, see api/PORTING.md
+├── server/            # Original Spring Boot Java Server (reference)
 │   └── src/           # Evaluation logic and API routes
 └── frontend/          # Next.js & React Web App
     ├── app/           # App routes and page components

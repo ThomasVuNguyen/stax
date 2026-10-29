@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import axios from "axios";
 import { NextRequest } from "next/server";
+
+import { backendFetch } from "@/utils/backendFetch";
 
 // Force dynamic rendering to prevent caching
 export const dynamic = "force-dynamic";
@@ -24,13 +25,17 @@ export const fetchCache = "force-no-store";
 export const runtime = "nodejs";
 export const preferredRegion = "auto";
 
-export async function POST(request: NextRequest) {
-  const errorStreamData = (error: string) => {
-    return `data:${JSON.stringify({
-      error,
-    })}\n`;
-  };
+const SSE_HEADERS = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+  Connection: "keep-alive",
+};
 
+function errorStream(error: string) {
+  return new Response(`data:${JSON.stringify({ error })}\n`, { headers: SSE_HEADERS });
+}
+
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const relativeEndpoint = request.url.split("/streaming/")[1];
@@ -46,66 +51,25 @@ export async function POST(request: NextRequest) {
       headers["Authorization"] = authHeader;
     }
 
-    // Create a readable stream for Server-Sent Events
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          const response = await axios({
-            method: "POST",
-            headers,
-            data: body,
-            responseType: "stream",
-            url: relativeEndpoint,
-            baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
-          });
+    try {
+      const response = await backendFetch(relativeEndpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
 
-          // Handle non-200 status codes
-          if (response.status !== 200) {
-            controller.enqueue(
-              new TextEncoder().encode(
-                errorStreamData(`Backend error: ${response.status}`),
-              ),
-            );
-            controller.close();
+      // Handle non-200 status codes
+      if (response.status !== 200 || !response.body) {
+        return errorStream(`Backend error: ${response.status}`);
+      }
 
-            return;
-          }
-
-          // Forward stream data as proper Server-Sent Events
-          response.data.on("data", (chunk: Buffer) => {
-            const chunkStr = chunk.toString();
-
-            // Format as proper Server-Sent Events
-            controller.enqueue(new TextEncoder().encode(chunkStr));
-          });
-
-          response.data.on("end", () => controller.close());
-          response.data.on("error", () => {
-            controller.enqueue(
-              new TextEncoder().encode(errorStreamData("Stream error")),
-            );
-            controller.close();
-          });
-        } catch (error) {
-          controller.enqueue(
-            new TextEncoder().encode(
-              errorStreamData(
-                `Request failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-              ),
-            ),
-          );
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Connection: "keep-alive",
-      },
-    });
+      // Forward the backend's Server-Sent Events as they arrive
+      return new Response(response.body, { headers: SSE_HEADERS });
+    } catch (error) {
+      return errorStream(
+        `Request failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
   } catch (error: any) {
     return new Response(
       JSON.stringify({

@@ -44,7 +44,7 @@ export async function createStreamingConnection({
     // First, we need to make a POST request to initiate the stream
     // and get the stream URL, then use EventSource to consume it
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_BASE_URL}/streaming${endpoint || ""}`,
+      `${process.env.NEXT_PUBLIC_APP_BASE_URL ?? ""}/streaming${endpoint || ""}`,
       {
         method: "POST",
         headers: {
