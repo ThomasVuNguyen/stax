@@ -299,6 +299,8 @@ export async function fetchDetailByJob(
 
 /** Child-row delete + job delete statements for one job, or null when the type is not deletable. */
 function deleteStatements(ctx: Ctx, jobStatus: JobStatus, userId: string): D1PreparedStatement[] | null {
+  // Java never checked that the job belonged to the user; jobs of other users are left untouched.
+  if (jobStatus.userId !== userId) return null;
   const id = jobStatus.id as string;
   let child: D1PreparedStatement;
   if (eqIgnoreCase(INFERENCE, jobStatus.type)) {
@@ -313,7 +315,6 @@ function deleteStatements(ctx: Ctx, jobStatus: JobStatus, userId: string): D1Pre
   return [child, JobStatusRepository.deleteByIdStmt(ctx.db, id)];
 }
 
-/** Like Java, the job itself is not checked against the user (only the child rows are filtered). */
 export async function deleteJobStatusByJobId(ctx: Ctx, jobStatusId: string, user: UserRef): Promise<void> {
   const jobStatus = await findById(ctx, jobStatusId);
   const stmts = deleteStatements(ctx, jobStatus, uid(user));

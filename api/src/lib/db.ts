@@ -68,7 +68,11 @@ export function chunk<T>(items: T[], size = 90): T[][] {
   return out;
 }
 
-/** Runs `SELECT ... WHERE col IN (...)` over arbitrarily many ids, chunked under D1's limit. */
+/**
+ * Runs `SELECT ... WHERE col IN (...)` over arbitrarily many ids, chunked under D1's limit.
+ * The IN clause may appear several times in the SQL (e.g. in a UNION); the ids are bound once per
+ * occurrence. `extraParams` are bound after all of them.
+ */
 export async function allIn<T = Row>(
   db: D1Database,
   sqlWithIn: (inClause: string) => string,
@@ -76,9 +80,12 @@ export async function allIn<T = Row>(
   ...extraParams: Param[]
 ): Promise<T[]> {
   if (!ids.length) return [];
+  const occurrences = Math.max(1, sqlWithIn("\u0000IN\u0000").split("\u0000IN\u0000").length - 1);
+  const size = Math.max(1, Math.floor((90 - extraParams.length) / occurrences));
   const out: T[] = [];
-  for (const part of chunk(ids, 90 - extraParams.length)) {
-    out.push(...(await all<T>(db, sqlWithIn(placeholders(part.length)), ...part, ...extraParams)));
+  for (const part of chunk(ids, size)) {
+    const params = Array.from({ length: occurrences }, () => part).flat();
+    out.push(...(await all<T>(db, sqlWithIn(placeholders(part.length)), ...params, ...extraParams)));
   }
   return out;
 }
