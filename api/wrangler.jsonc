@@ -5,6 +5,9 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Only reachable from the web Worker through its service binding.
+  "workers_dev": false,
+  "preview_urls": false,
   "d1_databases": [
     { "binding": "DB", "database_name": "stax", "database_id": "a367764a-9ac3-495d-85d1-de7401259cd0", "migrations_dir": "migrations" }
   ],
