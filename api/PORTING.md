@@ -162,3 +162,30 @@ and to `wrangler.jsonc` `vars` only if really needed, and report it.
   line.
 - Only create/modify files inside the packages you were assigned (plus adding an exception class
   to `lib/errors.ts` or a var to `env.ts` if unavoidable).
+
+## Notes from the entity/repository port (read before using them)
+
+- Every entity file exports `TABLE`, `ID_PREFIX`, `COLUMNS` (Java property → column, for
+  sorting), `create(partial)` (Java field defaults), `prePersist`, `fromRow`, `toRow`, `toJson`.
+  Java entity methods with logic are exported functions taking the entity plus the loaded
+  relations they need, e.g. `ChatTurn.getRawInputText({ inputs })`, `Chat.getLatestTurn({ turns })`.
+- Relation fields are `<field>Id` (`chatTurnAId`, `pairId`, `llmEvaluatorId`,
+  `evaluationStatusId`, `pointwiseEvaluatorId`, `modelInputId` for ModelInput.parent).
+  Project/DataSet carry `containerType: "PROJECT" | "DATASET"`; `EvaluationContainer.fromRow`
+  dispatches. `Tag`'s key field is `tagId`; `UserDeletionStatus`'s is `requestId`.
+- Repository params that were entities are ids (`User user` → `userId`, `Chat chat` → `chatId`).
+  `Optional<T>` → `T | null`. `delete` is exported (implemented as `delete_`), use
+  `Repo.delete(db, e)` via `import * as Repo`.
+- `save`/`saveAll` assign ids/timestamps, upsert, and return the entity; `saveStmt` returns a
+  statement for `db.batch`. Saves never cascade: save ModelResponse/InferenceMonitoring/
+  EvaluationStatus first and set the id. `delete`/`deleteAll` DO apply the JPA cascades;
+  `@Modifying` query deletes run literally.
+- Extra loaders: ChatTurnRepository `findInputsByTurnId(s)`, `saveInputs`/`saveInputsStmts`;
+  InferenceStatusRepository `findByChatTurnId`, `findAllByChatTurnIdIn`; ModelResponseRepository
+  `find{Scores,HumanEvalScores,PointwiseHeuristicEvaluationScores}ByModelResponseId(s)` (plural →
+  Map); LLM/pairwise evaluator repos `findInputsByEvaluatorId(s)`, `saveInputs`;
+  TagLinkRepository `findTagsByTagLinks`. Each documented at the top of its file.
+- Enums: `model_input.role` is ordinal (`inputRoleFromOrdinal`/`inputRoleToOrdinal`). Status
+  enums persist an integer key: use the `XxxKey` maps / `getValueByKey` helpers in the enum file.
+- Some repositories import DTO types from `domain/<pkg>/dto/...` that the owning package's porter
+  must create with exactly that name (check `grep -rn "dto/" src/domain/**/**Repository*.ts`).

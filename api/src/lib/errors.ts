@@ -35,10 +35,17 @@ export class ValidationException extends Error {
     super("Validation faild.");
   }
 }
-/** Bean-validation failures (@Valid / @NotBlank etc.). */
+/**
+ * Bean-validation failures (@Valid / @NotBlank etc., Spring's MethodArgumentNotValidException).
+ * Pass the `"field: message"` entries (joined with ", " when there are several); the class adds the
+ * prefix GlobalExceptionHandler.handleValidationError put in front of them.
+ */
+export const INVALID_DATA_PREFIX =
+  "Invalid Data: Please check the format and values of the data you submitted. Correct the" +
+  " highlighted fields. Details: ";
 export class InvalidDataException extends HttpError {
-  constructor(message: string) {
-    super(400, "INVALID_DATA", message);
+  constructor(details: string) {
+    super(400, "INVALID_DATA", details.startsWith(INVALID_DATA_PREFIX) ? details : INVALID_DATA_PREFIX + details);
   }
 }
 export class ApiKeyIsMissingException extends HttpError {
@@ -76,9 +83,10 @@ export class UnauthorizedException extends HttpError {
     super(401, "UNAUTHORIZED", message);
   }
 }
+/** Java PermissionException extends RuntimeException and has no dedicated handler -> 500 RUNTIME_ERROR. */
 export class PermissionException extends HttpError {
   constructor(message = "Access denied") {
-    super(403, "PERMISSION_DENIED", message);
+    super(500, "RUNTIME_ERROR", message);
   }
 }
 export class UserAccessDeniedException extends HttpError {
@@ -103,7 +111,7 @@ export class ModelNotFoundException extends HttpError {
 }
 export class MethodNotSupportException extends HttpError {
   constructor(message = "Method not supported") {
-    super(405, "METHOD_NOT_SUPPORTED", message);
+    super(405, "METHOD_NOT_SUPPORT", message);
   }
 }
 export class EmailAlreadyExistsException extends HttpError {
@@ -141,14 +149,43 @@ export class LlmServerException extends HttpError {
     super(500, "LLM_SERVER_ERROR", message);
   }
 }
+/**
+ * `new ResourceDeletionException(resourceName, resourceId, message)` renders like the Java handler:
+ * "Failed to delete resource of type <name> with ID <id>. <message>". With a single argument the
+ * message is used as is.
+ */
 export class ResourceDeletionException extends HttpError {
-  constructor(message: string) {
-    super(500, "RESOURCE_DELETION_FAILED", message);
+  constructor(messageOrResourceName: string, resourceId?: string, message?: string) {
+    super(
+      500,
+      "RESOURCE_DELETION_FAILED",
+      resourceId === undefined
+        ? messageOrResourceName
+        : `Failed to delete resource of type ${messageOrResourceName} with ID ${resourceId}. ${message ?? "null"}`,
+    );
   }
 }
 export class RuntimeException extends HttpError {
-  constructor(message: string) {
+  constructor(message: string, options?: { cause?: unknown }) {
     super(500, "RUNTIME_ERROR", message);
+    if (options?.cause !== undefined) (this as { cause?: unknown }).cause = options.cause;
+  }
+}
+// Java RuntimeException subclasses without a dedicated GlobalExceptionHandler entry: they fall
+// through to handleRuntimeException (500 RUNTIME_ERROR with the message). The Anthropic*/Mistral*
+// exceptions were never thrown; the LLM strategies use the generic Llm* classes instead.
+export class CustomRuntimeException extends RuntimeException {}
+export class ImportValidationException extends RuntimeException {}
+export class InferenceException extends RuntimeException {}
+export class TagAssociationException extends RuntimeException {}
+export class NotBlankException extends RuntimeException {}
+export class KeyInvalidAuthenticationException extends RuntimeException {}
+/** java.lang.UnsupportedOperationException, rendered by the RuntimeException handler. */
+export class UnsupportedOperationException extends RuntimeException {}
+/** FeatureDisabledException is rendered as 404 PATH_NOT_FOUND "Path not found" whatever its message. */
+export class FeatureDisabledException extends HttpError {
+  constructor(public detail = "Feature disabled") {
+    super(404, "PATH_NOT_FOUND", "Path not found");
   }
 }
 export class NotImplementedException extends HttpError {
@@ -164,7 +201,7 @@ export class LlmEngineOverloadedException extends HttpError {
 
 /** NotFoundException used a different body shape: `{ success: false, type: "error", message }`. */
 export class NotFoundException extends Error {
-  constructor(message = "Not found") {
+  constructor(message = "Not Found: We couldn't find what you were looking for.") {
     super(message);
   }
 }
