@@ -66,8 +66,8 @@ export async function runInferenceWithConversation(
   let sequenceId = turns.length ? Math.max(...turns.map((t) => t.sequenceId ?? 0)) + 1 : 0;
 
   if (variables != null && Object.keys(variables).length) {
-    await ChatService.addOrUpdateVariables(ctx, chat.id as string, user, variables);
-    chat.variables = (await ChatRepository.findById(ctx.db, chat.id as string))?.variables ?? chat.variables;
+    // Same managed Chat in Java: the merged variables are visible to the turns created below.
+    chat.variables = (await ChatService.addOrUpdateVariables(ctx, chat.id as string, user, variables)).variables;
   }
 
   const promptsByTurn = splitPromptsByTurn(allPrompts);

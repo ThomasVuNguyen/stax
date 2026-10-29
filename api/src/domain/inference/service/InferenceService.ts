@@ -182,8 +182,7 @@ async function saveModelInputRequest(
   let chat: LoadedChat;
   if (previousChatTurn != null) {
     chat = previousChatTurn.chat;
-    await ChatService.addOrUpdateVariables(ctx, chat.id as string, user, variables as Record<string, string>);
-    chat.variables = (await ChatRepository.findById(ctx.db, chat.id as string))?.variables ?? chat.variables;
+    chat.variables = (await ChatService.addOrUpdateVariables(ctx, chat.id as string, user, variables)).variables;
   } else {
     // chatService.createChat(null, project, user, variables)
     chat = await ChatRepository.save(
